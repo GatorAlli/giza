@@ -1,36 +1,37 @@
 import sys
-import random
 from PyQt4.QtGui import QApplication
-from giza.widgets import NodeView, Node, NodeConnector
-import time
+from giza.widgets import NodeView
+from giza.nodetypes.input import ColorInputNode
+from giza.nodetypes.convert import MixNode
+import random
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     nodeViewWidget = NodeView()
-    '''
+    
     nodeRange = 1000
     for x in range(10):
-        node = Node()
+        node = MixNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
         nodeViewWidget.scene().addItem(node)
+    
     '''
-    
-    node1 = Node()
-    node1.setPos(0, 0)
-    
-    node2 = Node()
+    for _ in range(1):
+        node1 = MixNode()
+        node1.setPos(0, 0)
+        nodeViewWidget.scene().addItem(node1)
+        
+    node2 = ColorInputNode()
     node2.setPos(400, 100)
     
-    nodeViewWidget.scene().addItem(node1)
+    node3 = MixNode()
+    node3.setPos(200, 130)
+    
     nodeViewWidget.scene().addItem(node2)
-    
-    '''connector = NodeConnector(node1.port, node2.port)
-    nodeViewWidget.scene().addItem(connector)
-    
-    def lol():
-        print time.time()
-    nodeViewWidget.scene().changed.connect(connector.updatePath)
+    nodeViewWidget.scene().addItem(node3)
     '''
     nodeViewWidget.setWindowTitle("NodeView")
     nodeViewWidget.show()

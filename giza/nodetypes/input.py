@@ -15,7 +15,7 @@ class ColorInputNode(Node):
         super(ColorInputNode, self).__init__()
         
         self.setTitle("Color")
-        self.addPort(NodePort("ColorOut", NodePort.Color, NodePort.OUTPUT))
+        self.addPort(NodePort(NodePort.COLOR, NodePort.OUTPUT, "ColorOut"))
         
 
 class NumberInputNode(Node):
