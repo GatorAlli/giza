@@ -50,7 +50,7 @@ class Node(QGraphicsItem):
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.setSelected(value.toBool())
         if change == QGraphicsItem.ItemPositionHasChanged:
-            [port.updateConnections() for port in self.getPorts()]
+            [port.updateConnections() for port in self.ports]
             
         return super(Node, self).itemChange(change, value)
     
@@ -119,25 +119,19 @@ class Node(QGraphicsItem):
             port.width = self.width + 12 * 2 + 12
             port.setPos(0 - 12 - 6, 30 + i * 30)
     
-    def getPorts(self):
-        """
-        Returns a list of owned ports.
-        """
-        return self.ports
-    
-    def getInputPorts(self):
+    @property
+    def inputPorts(self):
         """
         Returns a list of owned input ports.
         """
-        return [port for port in self.ports 
-                if port.getDirection() == NodePort.INPUT]
+        return [port for port in self.ports if port.isInput()]
     
-    def getOutputPorts(self):
+    @property
+    def outputPorts(self):
         """
         Returns a list of owned output ports.
         """
-        return [port for port in self.ports 
-                if port.getDirection() == NodePort.OUTPUT]
+        return [port for port in self.ports if port.isOutput()]
         
     def getImmediateAncestors(self):
         """
@@ -154,8 +148,8 @@ class Node(QGraphicsItem):
         Getting the immediate ancestors of [A] would return [[B], [C]].
         """
         ancestors = []
-        for port in self.getInputPorts():
-            for port in port.getConnectedPorts():
+        for port in self.inputPorts:
+            for port in port.connectedPorts:
                 ancestors.append(port.parentItem())
         return ancestors
     
@@ -171,8 +165,7 @@ class Node(QGraphicsItem):
             [E]       > [A]
                   [C]
         
-        Getting the ancestors of [A] would return [[B], [C], [D], [E]].
-        """
+        Getting the ancestors of [A] would return [[B], [C], [D], [E]].""" 
         if not source:
             source = self
         
@@ -183,9 +176,6 @@ class Node(QGraphicsItem):
                 ancestors.extend(ancestor.getAllAncestors(source))
                 
         return ancestors
-        
-    def mousePressEvent(self, event):
-        return super(Node, self).mousePressEvent(event)
         
 class AnimationAdapter(QObject):
     def __init__(self, parent, obj):
@@ -204,15 +194,16 @@ class NodeConnector(QGraphicsPathItem):
     def __init__(self, sourcePort=None, destinationPort=None):
         super(NodeConnector, self).__init__()
         
-        self.adapter = AnimationAdapter(self, self)
-        self.lastPort = None
-        self.points = None
-        self.setValid(False)
-        self.setActive(False)
-        self.setSource(sourcePort)
-        self.setDestination(destinationPort)
-        
-        self.setPen(QPen(QColor(30, 30, 30, 200), 2))
+        self.adapter     = AnimationAdapter(self, self)
+        self.lastPort    = None
+        self.points      = None
+        self.valid       = False
+        self.active      = False
+        self.source      = sourcePort
+        self.destination = destinationPort
+        self.pen         = QPen(QColor(30, 30, 30, 200), 2)
+
+        self.setPen(self.pen)
         self.setZValue(-1)
         
         # Animations
@@ -234,10 +225,6 @@ class NodeConnector(QGraphicsPathItem):
         self.setOpacity(0.5)
         self.fadeInAnimation.start()
     
-    def mousePressEvent(self, event):
-        self.animateOpacity()
-        return super(NodeConnector, self).mousePressEvent(event)
-    
     def animateOpacity(self):
         self.anim = QPropertyAnimation(self.adapter, "opacity")
         self.anim.setDuration(300)
@@ -255,28 +242,23 @@ class NodeConnector(QGraphicsPathItem):
         return point
     
     def updatePoints(self):
-        source, destination = self.getSource(), self.getDestination()
-        if source and destination:
-            if self.startPoint is source:
-                self.points = [self.getPoint(source), 
-                               self.getPoint(destination)]
+        if self.source and self.destination:
+            if self.startPoint is self.source:
+                self.points = [self.getPoint(self.source), 
+                               self.getPoint(self.destination)]
             else:
-                self.points = [self.getPoint(destination),
-                               self.getPoint(source)]
-    
-    def getPoints(self):
-        return self.points
+                self.points = [self.getPoint(self.destination),
+                               self.getPoint(self.source)]
 
     def updatePath(self):
-        points = self.getPoints()
-        if points and points[0] and points[1]:
-            pos1, pos2 = points[0], points[1]
+        if self.points and self.points[0] and self.points[1]:
+            pos1, pos2 = self.points
             path = QPainterPath()
             path.moveTo(pos1)
             
             e = 0.5
             f = 1
-            if self.startPoint.getDirection() is NodePort.INPUT:
+            if self.startPoint.isInput():
                 f = -1
                 
             dx = pos2.x() - pos1.x()
@@ -289,74 +271,48 @@ class NodeConnector(QGraphicsPathItem):
             
             self.setPath(path)
     
-    def isActive(self):
-        return self.active
-    
-    def setActive(self, active):
-        self.active = active
-    
-    def isValid(self):
-        return self.valid
-    
-    def setValid(self, valid):
-        self.valid = valid
-        
-    def setSource(self, source):
-        self.source = source
-    
-    def getSource(self):
-        return self.source
-    
-    def setDestination(self, destination):
-        self.destination = destination
-    
-    def getDestination(self):
-        return self.destination
-    
     def setStartPoint(self, port):
-        if port.getDirection() is NodePort.INPUT:
-            self.setDestination(port)
+        if port.isInput():
+            self.destination = port
         else:
-            self.setSource(port)
+            self.source = port
         self.startPoint = port
         
     def setEndPoint(self, port):
         if isinstance(port, QPointF):
-            self.setValid(False)
+            self.valid = False
             
             if self.lastPort:
                 self.lastPort.setHighlight(False)
                 self.lastPort = None
                 
-            if self.startPoint.getDirection() is NodePort.INPUT:
-                self.setSource(port)
+            if self.startPoint.isInput():
+                self.source = port
             else:
-                self.setDestination(port)
+                self.destination = port
                 
             self.updatePoints()
             
         elif self.isConnectionValid(self.startPoint, port):
-            self.setValid(True)
-            if self.startPoint.getDirection() is NodePort.INPUT:
-                self.setSource(port)
+            self.valid = True
+            if self.startPoint.isInput():
+                self.source = port
             else:
-                for connection in port.getConnections():
+                for connection in port.connections:
                     connection.fadeOutAnimation.start()
-                self.setDestination(port)
+                self.destination = port
             port.setHighlight(True)
             self.lastPort = port
             self.updatePoints()
             
         else:
-            self.setValid(False)
+            self.valid = False
     
     def connectNodes(self):
-        if self.isValid():
-            source      = self.getSource()
-            destination = self.getDestination()
-            source.connectTo(destination, self)
-            destination.removeConnections()
-            destination.connectTo(source, self)
+        if self.valid:
+            self.source.connectTo(self.destination, self)
+            self.destination.removeConnections()
+            self.destination.connectTo(self.source, self)
         else:
             self.delete()
     
@@ -364,7 +320,7 @@ class NodeConnector(QGraphicsPathItem):
         valid = False
         if isinstance(port1, NodePort) and isinstance(port2, NodePort):
             cyclic = False
-            if port1.getDirection() is NodePort.INPUT:
+            if port1.isInput():
                 cyclic = port1.parentItem() in port2.parentItem().getAllAncestors()
             else:
                 cyclic = port2.parentItem() in port1.parentItem().getAllAncestors()
@@ -372,7 +328,7 @@ class NodeConnector(QGraphicsPathItem):
             valid = (port1 is not port2 and 
                 isinstance(port1, NodePort) and isinstance(port2, NodePort) and
                 port1.parentItem() is not port2.parentItem() and 
-                port1.getDirection() is not port2.getDirection() and 
+                port1.direction is not port2.direction and 
                 not cyclic) # no two inputs on the same node one input dismatles the other, check blender
         return valid
         
@@ -412,32 +368,14 @@ class NodePort(QGraphicsItem):
         self.connections = {}
         self.highlighted = False
                 
-        self.setLabel(label or portType["label"])
-        self.setType(portType)
-        self.setDirection(direction)
+        self.label     = label or portType["label"]
+        self.type      = portType
+        self.direction = direction
         
         self.pen = QPen(QColor(30, 30, 30, 255*.25))
         self.pen.setWidth(1)
         
         self.setColor(portType["color"])
-    
-    def setLabel(self, label):
-        self.label = label
-        
-    def getLabel(self):
-        return self.label
-    
-    def setType(self, portType):
-        self.type = portType
-    
-    def getType(self):
-        return self.type
-    
-    def setDirection(self, direction):
-        self.direction = direction
-        
-    def getDirection(self):
-        return self.direction
         
     def setColor(self, color):
         self.color  = QColor(color)
@@ -463,7 +401,7 @@ class NodePort(QGraphicsItem):
         nodePort = self.scene().itemAt(scenePos)
         self.connector.setEndPoint(nodePort)
         
-        if not self.connector.isValid():
+        if not self.connector.valid:
             self.connector.setEndPoint(scenePos)
         
         self.connector.updatePath()
@@ -481,7 +419,7 @@ class NodePort(QGraphicsItem):
         x = self.boundingRect().width() - self.radius * 2.0 - self.padding
         y = self.boundingRect().height() / 2.0 - self.radius
         
-        if self.getDirection() is NodePort.INPUT:
+        if self.isInput():
             x = self.padding
         
         diameter = self.radius * 2
@@ -500,10 +438,17 @@ class NodePort(QGraphicsItem):
     def isHighlighted(self):
         return self.highlighted
     
+    def isInput(self):
+        return self.direction == NodePort.INPUT
+
+    def isOutput(self):
+        return self.direction == NodePort.OUTPUT
+
     def connectTo(self, port, connection):
         self.connections[connection] = port
         
-    def getConnectedPorts(self):
+    @property
+    def connectedPorts(self):
         return self.connections.values()
     
     def removeConnection(self, connection):
@@ -511,21 +456,18 @@ class NodePort(QGraphicsItem):
         
     def removeConnections(self):
         connections = []
-        for connection, port in self.getConnections().iteritems():
+        for connection, port in self.connections.iteritems():
             connections.append(connection)
             port.removeConnection(connection)
             connection.delete()
         [self.removeConnection(connection) for connection in connections]
         self.connections.clear()
-        
-    def getConnections(self):
-        return self.connections
     
     def hasConnections(self):
-        return len(self.getConnections()) is not 0
+        return len(self.connections) is not 0
     
     def updateConnections(self):
-        for connection in self.getConnections().keys():
+        for connection in self.connections.keys():
             connection.updatePoints()
             connection.updatePath()
             
@@ -547,9 +489,9 @@ class NodePort(QGraphicsItem):
         textRect.moveLeft(n / 2.0)
         
         alignment = Qt.AlignLeft
-        if self.getDirection() is NodePort.OUTPUT:
+        if self.isOutput():
             alignment = Qt.AlignRight
             
-        painter.drawText(textRect, alignment | Qt.AlignVCenter, self.getLabel())
+        painter.drawText(textRect, alignment | Qt.AlignVCenter, self.label)
         
         
