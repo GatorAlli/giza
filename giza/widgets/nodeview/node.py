@@ -1,59 +1,80 @@
 from PyQt4.QtGui import (QGraphicsItem, QGraphicsPathItem, QColor, QPen, QBrush, 
                          QGraphicsDropShadowEffect, QFont, QRadialGradient,
                          QPainterPath)
-from PyQt4.QtCore import QRectF, Qt, QPointF
+from PyQt4.QtCore import (QRectF, Qt, QPointF, QPropertyAnimation, QEasingCurve,
+                         QObject, pyqtProperty)
 
 
 class Node(QGraphicsItem):
+    """
+    Node
+    """
+    
     def __init__(self):
         super(Node, self).__init__()
-        
-        self.title = ""
-        self.width, self.height = 150, 180
-        
-        self.backgroundColor = QColor(120, 120, 120, 255*.9)
-        self.normalBorderColor = QColor(15, 15, 15, 255*.25)
-        self.selectedBorderColor = QColor(255, 255*.75, 0, 255*.4)
-        self.textColor = QColor(30, 30, 30)
-        self.headerSize = 14
         
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
-                
+        
+        self.title = ""
+        self.width, self.height = 150, 180
+        self.headerSize = 14
+        self.shadowBlurRadius = 20
+        
+        self.backgroundColor     = QColor( 120, 120, 120, 230 )
+        self.normalBorderColor   = QColor(  15,  15,  15,  64 )
+        self.selectedBorderColor = QColor( 255, 191,   0, 102 )
+        self.textColor           = QColor(  30,  30,  30, 255 )
+        self.shadowColor         = QColor(   0,   0,   0, 255 )
+        self.selectedShadowColor = QColor( 100, 100, 100, 255 )
+        
         self.shadow = QGraphicsDropShadowEffect()
-        self.shadow.setBlurRadius(20)
+        self.shadow.setBlurRadius(self.shadowBlurRadius)
         self.shadow.setOffset(0, 0)
         self.setGraphicsEffect(self.shadow)
         
-        self.pen = QPen()
-        self.pen.setWidth(1)
+        self.pen   = QPen()
         self.brush = QBrush(Qt.SolidPattern)
-        self.font = QFont()
+        self.font  = QFont()
+        self.pen.setWidth(1)
+        self.brush.setColor(self.backgroundColor)
         self.font.setPointSize(10)
         
-        #Ports
         self.ports = []
         
     def itemChange(self, change, value):
+        """
+        Triggers different actions based on changes within the QGraphicsItem.
+        """
         if change == QGraphicsItem.ItemSelectedHasChanged:
-            self.setSelected(value)
+            self.setSelected(value.toBool())
         if change == QGraphicsItem.ItemPositionHasChanged:
-            for port in self.getPorts():
-                port.updateConnections()
+            [port.updateConnections() for port in self.getPorts()]
+            
         return super(Node, self).itemChange(change, value)
     
     def setSelected(self, selected):
-        if selected.toBool():
-            self.shadow.setColor(QColor(100, 100, 100, 255))
+        if selected:
+            # Node was selected
+            self.shadow.setColor(self.selectedShadowColor)
         else:
-            self.shadow.setColor(QColor(0, 0, 0, 255))
+            # Node was deselected
+            self.shadow.setColor(self.shadowColor)
             
     def boundingRect(self):
-        return QRectF(0, 0, self.width, self.height)
+        """
+        Returns a bounding rect based on defined width and height.
+        """
+        return QRectF(0, 0, self.width, self.height).adjusted(
+            -self.shadowBlurRadius, -self.shadowBlurRadius, 
+             self.shadowBlurRadius,  self.shadowBlurRadius)
     
     def paint(self, painter, option, widget):
-        width, height = self.boundingRect().width(), self.boundingRect().height()
+        """
+        Paint method for the QGraphicsItem
+        """
+        # Draw base rectangle
         
         if self.isSelected():
             self.pen.setColor(self.selectedBorderColor)
@@ -62,19 +83,34 @@ class Node(QGraphicsItem):
             
         painter.setPen(self.pen)
         painter.setFont(self.font)
-        self.brush.setColor(self.backgroundColor)
         painter.setBrush(self.brush)
-        painter.drawRoundedRect(0, 0, width, height, 4, 4)
+        painter.drawRoundedRect(0, 0, self.width, self.height, 4, 4)
+        
+        # Draw title text
         
         painter.setPen(self.textColor)
         painter.drawText(10, 20, self.title)
     
     def addPort(self, port):
+        """
+        Adds a port.
+        
+        Retrieves rows pertaining to the given keys from the Table instance 
+        represented by big_table.  Silly things may happen if 
+        other_silly_variable is not None.
+        
+        Args:
+            port (NodePort): the port to add.
+        """
         self.ports.append(port)
         port.setParentItem(self)
         self.updatePorts()
         
     def removePort(self, port):
+        """Removes a port.
+
+        :param port: the port to remove
+        """
         self.ports.remove(port)
         self.updatePorts()
         
@@ -83,42 +119,92 @@ class Node(QGraphicsItem):
             port.width = self.width + 12 * 2 + 12
             port.setPos(0 - 12 - 6, 30 + i * 30)
     
-    def getInputPorts(self):
-        return [port for port in self.ports 
-                if port.getDirection() == NodePort.INPUT]
-        
     def getPorts(self):
+        """
+        Returns a list of owned ports.
+        """
         return self.ports
     
+    def getInputPorts(self):
+        """
+        Returns a list of owned input ports.
+        """
+        return [port for port in self.ports 
+                if port.getDirection() == NodePort.INPUT]
+    
     def getOutputPorts(self):
+        """
+        Returns a list of owned output ports.
+        """
         return [port for port in self.ports 
                 if port.getDirection() == NodePort.OUTPUT]
         
     def getImmediateAncestors(self):
+        """
+        Returns a list of the nodes immediate ancestors.
+        
+        Retrieves the nodes that are directly connected to any of the node's 
+        input ports. With this node graph::
+        
+            [D]
+                > [B]
+            [E]       > [A]
+                  [C]
+        
+        Getting the immediate ancestors of [A] would return [[B], [C]].
+        """
         ancestors = []
         for port in self.getInputPorts():
             for port in port.getConnectedPorts():
                 ancestors.append(port.parentItem())
         return ancestors
     
-    def getAllAncestors(self):
+    def getAllAncestors(self, source=None):
+        """
+        Returns a list of the nodes ancestors.
+        
+        Retrieves the nodes that are implicitly and explicitly connected to any 
+        of the node's input ports. With this node graph::
+        
+            [D]
+                > [B]
+            [E]       > [A]
+                  [C]
+        
+        Getting the ancestors of [A] would return [[B], [C], [D], [E]].
+        """
+        if not source:
+            source = self
+        
         ancestors = []
         for ancestor in self.getImmediateAncestors():
-            if ancestor not in ancestors:
+            if ancestor not in ancestors and ancestor is not source:
                 ancestors.append(ancestor)
-                ancestors.extend(ancestor.getAllAncestors())
+                ancestors.extend(ancestor.getAllAncestors(source))
+                
         return ancestors
-            
-    def setTitle(self, title):
-        self.title = title
-    
+        
     def mousePressEvent(self, event):
         return super(Node, self).mousePressEvent(event)
+        
+class AnimationAdapter(QObject):
+    def __init__(self, parent, obj):
+        super(AnimationAdapter, self).__init__()
+        self.obj = obj
+        
+    def __get_opacity(self):
+        return self.obj.opacity()
+    
+    def __set_opacity(self, opacity):
+        return self.obj.setOpacity(opacity)
+    
+    opacity = pyqtProperty(float, __get_opacity, __set_opacity)
         
 class NodeConnector(QGraphicsPathItem):
     def __init__(self, sourcePort=None, destinationPort=None):
         super(NodeConnector, self).__init__()
         
+        self.adapter = AnimationAdapter(self, self)
         self.lastPort = None
         self.points = None
         self.setValid(False)
@@ -129,13 +215,43 @@ class NodeConnector(QGraphicsPathItem):
         self.setPen(QPen(QColor(30, 30, 30, 200), 2))
         self.setZValue(-1)
         
+        # Animations
+        self.fadeInAnimation = QPropertyAnimation(self.adapter, "opacity")
+        self.fadeInAnimation.setDuration(300)
+        self.fadeInAnimation.setStartValue(0.5)
+        self.fadeInAnimation.setEndValue(1.0)
+        self.fadeInAnimation.setEasingCurve(QEasingCurve.InOutQuad)
+        
+        self.fadeOutAnimation = QPropertyAnimation(self.adapter, "opacity")
+        self.fadeOutAnimation.setDuration(300)
+        self.fadeOutAnimation.setStartValue(1.0)
+        self.fadeOutAnimation.setEndValue(0.5)
+        self.fadeOutAnimation.setEasingCurve(QEasingCurve.InOutQuad)
+        
         self.updatePath()
+        
+        # Start animation
+        self.setOpacity(0.5)
+        self.fadeInAnimation.start()
+    
+    def mousePressEvent(self, event):
+        self.animateOpacity()
+        return super(NodeConnector, self).mousePressEvent(event)
+    
+    def animateOpacity(self):
+        self.anim = QPropertyAnimation(self.adapter, "opacity")
+        self.anim.setDuration(300)
+        self.anim.setStartValue(1.0)
+        self.anim.setEndValue(0.5)
+        self.anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self.anim.start()
         
     def getPoint(self, item):
         if isinstance(item, NodePort):
             point = item.scenePos() + item.getPortBoundingRect().center()
         else:
             point = item
+            
         return point
     
     def updatePoints(self):
@@ -224,6 +340,8 @@ class NodeConnector(QGraphicsPathItem):
             if self.startPoint.getDirection() is NodePort.INPUT:
                 self.setSource(port)
             else:
+                for connection in port.getConnections():
+                    connection.fadeOutAnimation.start()
                 self.setDestination(port)
             port.setHighlight(True)
             self.lastPort = port

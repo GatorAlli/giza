@@ -14,7 +14,8 @@ class MixNode(Node):
     def __init__(self):
         super(MixNode, self).__init__()
         
-        self.setTitle("Mix")
+        self.title = "Mix"
+        self.width = 400
         self.addPort(NodePort(NodePort.COLOR,  NodePort.OUTPUT,  "In"))
         self.addPort(NodePort(NodePort.COLOR,  NodePort.OUTPUT,  "In"))
         self.addPort(NodePort(NodePort.COLOR,  NodePort.INPUT,  "In"))

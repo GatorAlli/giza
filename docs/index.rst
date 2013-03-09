@@ -20,3 +20,7 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+.. automodule:: giza.widgets
+
+.. autoclass:: Node
+    :members: 

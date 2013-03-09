@@ -12,7 +12,7 @@ if __name__ == "__main__":
     nodeViewWidget = NodeView()
     
     nodeRange = 1000
-    for x in range(10):
+    for x in range(4):
         node = MixNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
