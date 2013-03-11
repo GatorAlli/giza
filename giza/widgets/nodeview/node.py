@@ -19,7 +19,7 @@ class Node(QGraphicsItem):
         
         self.title = ""
         self.width, self.height = 150, 180
-        self.headerSize = 14
+        self.headerSize = 20
         self.shadowBlurRadius = 20
         
         self.backgroundColor     = QColor( 120, 120, 120, 230 )
@@ -38,6 +38,7 @@ class Node(QGraphicsItem):
         self.brush = QBrush(Qt.SolidPattern)
         self.font  = QFont()
         self.pen.setWidth(1)
+        self.pen.setColor(self.normalBorderColor)
         self.brush.setColor(self.backgroundColor)
         self.font.setPointSize(10)
         
@@ -58,9 +59,11 @@ class Node(QGraphicsItem):
         if selected:
             # Node was selected
             self.shadow.setColor(self.selectedShadowColor)
+            self.pen.setColor(self.selectedBorderColor)
         else:
             # Node was deselected
             self.shadow.setColor(self.shadowColor)
+            self.pen.setColor(self.normalBorderColor)
             
     def boundingRect(self):
         """
@@ -75,29 +78,18 @@ class Node(QGraphicsItem):
         Paint method for the QGraphicsItem
         """
         # Draw base rectangle
-        
-        if self.isSelected():
-            self.pen.setColor(self.selectedBorderColor)
-        else:
-            self.pen.setColor(self.normalBorderColor)
-            
         painter.setPen(self.pen)
-        painter.setFont(self.font)
         painter.setBrush(self.brush)
         painter.drawRoundedRect(0, 0, self.width, self.height, 4, 4)
         
         # Draw title text
-        
         painter.setPen(self.textColor)
+        painter.setFont(self.font)
         painter.drawText(10, 20, self.title)
     
     def addPort(self, port):
         """
         Adds a port.
-        
-        Retrieves rows pertaining to the given keys from the Table instance 
-        represented by big_table.  Silly things may happen if 
-        other_silly_variable is not None.
         
         Args:
             port (NodePort): the port to add.
@@ -112,12 +104,14 @@ class Node(QGraphicsItem):
         :param port: the port to remove
         """
         self.ports.remove(port)
+        port.remove()
         self.updatePorts()
         
     def updatePorts(self):
         for i, port in enumerate(self.ports):
-            port.width = self.width + 12 * 2 + 12
-            port.setPos(0 - 12 - 6, 30 + i * 30)
+            port.width = self.width + port.padding * 2 + port.radius * 2
+            port.setPos(-port.padding - port.radius, 
+                self.headerSize + i * port.height)
     
     @property
     def inputPorts(self):
@@ -494,4 +488,5 @@ class NodePort(QGraphicsItem):
             
         painter.drawText(textRect, alignment | Qt.AlignVCenter, self.label)
         
-        
+    def remove(self):
+        pass
