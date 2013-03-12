@@ -17,12 +17,6 @@ class Node(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         
-        # Settings
-        self.title = "Node"
-        self.width, self.height = 150, 180
-        self.headerSize = 20
-        self.shadowBlurRadius = 20
-        
         # Colors
         self.backgroundColor     = QColor( 120, 120, 120, 230 )
         self.normalBorderColor   = QColor(  15,  15,  15,  64 )
@@ -30,6 +24,12 @@ class Node(QGraphicsItem):
         self.textColor           = QColor(  30,  30,  30, 255 )
         self.shadowColor         = QColor(   0,   0,   0, 255 )
         self.selectedShadowColor = QColor( 100, 100, 100, 255 )
+
+        # Settings
+        self.title = "Node"
+        self.width, self.height = 150, 180
+        self.headerSize = 20
+        self.shadowBlurRadius = 20
         
         # Drop Shadow
         self.shadow = QGraphicsDropShadowEffect()
@@ -51,7 +51,8 @@ class Node(QGraphicsItem):
         
     def itemChange(self, change, value):
         """
-        Triggers different actions based on changes within the QGraphicsItem.
+        Overrides QGraphicsItem's boundingRect() virtual public function to 
+        trigger different actions based on changes within the QGraphicsItem.
         """
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.setSelected(value.toBool())
@@ -59,20 +60,7 @@ class Node(QGraphicsItem):
             [port.updateConnections() for port in self.ports]
             
         return super(Node, self).itemChange(change, value)
-    
-    def setSelected(self, selected):
-        """
-        Changes visual parameters on a selection or deselection event.
-        """
-        if selected:
-            # Node selected
-            self.shadow.setColor(self.selectedShadowColor)
-            self.pen.setColor(self.selectedBorderColor)
-        else:
-            # Node deselected
-            self.shadow.setColor(self.shadowColor)
-            self.pen.setColor(self.normalBorderColor)
-            
+
     def boundingRect(self):
         """
         Overrides QGraphicsItem's boundingRect() virtual public function and 
@@ -81,7 +69,7 @@ class Node(QGraphicsItem):
         return QRectF(0, 0, self.width, self.height).adjusted(
             -self.shadowBlurRadius, -self.shadowBlurRadius, 
              self.shadowBlurRadius,  self.shadowBlurRadius)
-    
+
     def paint(self, painter, option, widget):
         """
         Overrides QGraphicsItem's paint() virtual public function.
@@ -95,13 +83,23 @@ class Node(QGraphicsItem):
         painter.setPen(self.textColor)
         painter.setFont(self.font)
         painter.drawText(10, 20, self.title)
+
+    def setSelected(self, selected):
+        """
+        Changes visual parameters on a selection or deselection event.
+        """
+        if selected:
+            # Node selected
+            self.shadow.setColor(self.selectedShadowColor)
+            self.pen.setColor(self.selectedBorderColor)
+        else:
+            # Node deselected
+            self.shadow.setColor(self.shadowColor)
+            self.pen.setColor(self.normalBorderColor)
     
     def addPort(self, port):
         """
         Adds a port.
-        
-        Args:
-            port (NodePort): the port to add.
         """
         self.ports.append(port)
         port.setParentItem(self)
@@ -110,8 +108,6 @@ class Node(QGraphicsItem):
     def removePort(self, port):
         """
         Removes a port.
-
-        :param port: the port to remove
         """
         self.ports.remove(port)
         port.remove()
@@ -362,6 +358,10 @@ class NodeConnection(QGraphicsPathItem):
             if obj2.parentItem() in obj1.parentItem().getAllAncestors():
                 return False
 
+        # A connection cannot be a duplicate of another.
+        if obj1 in obj2.connectedPorts or obj2 in obj1.connectedPorts:
+            return False
+
         return True
 
     def canConnectTo(self, obj):
@@ -491,19 +491,24 @@ class NodePort(QGraphicsItem):
             # The pending connection is being dragged.
             obj = self.scene().itemAt(position)
             if self.pendingConnection.pendingEnd is not obj:
-                # The pending connection is being dragged over a new object.
+                # The pend# Unhighlight any previously pending ports.ing connection is being dragged over a new object.
+                # Unhighlight any previously pending ports.
+                pendingEnd = self.pendingConnection.pendingEnd
+                if isinstance(pendingEnd, NodePort):
+                    pendingEnd.highlight(False)
+                    pendingEnd.highlightConnections(False)
+
                 if self.pendingConnection.canConnectTo(obj):
                     # The pending connection is being dragged over a valid port.
                     # Highlight the port.
                     obj.highlight(True)
+                    obj.highlightConnections(True)
                     self.pendingConnection.dragTo(obj)
                 else:
-                    # Unhighlight any previously pending ports.
-                    pendingEnd = self.pendingConnection.pendingEnd
-                    if isinstance(pendingEnd, NodePort):
-                        pendingEnd.highlight(False)
                     # Drag the pending connection to the current mouse position.
                     self.pendingConnection.dragTo(position)
+
+
                 # Recalculate and redraw the connection
                 self.pendingConnection.updatePath()
         
@@ -541,6 +546,12 @@ class NodePort(QGraphicsItem):
         self.highlighted = value
         self.update()
     
+    def highlightConnections(self, value):
+        if value:
+            [connection.fadeOut() for connection in self.connections.keys()]
+        else:
+            [connection.fadeIn() for connection in self.connections.keys()]
+
     def isInput(self):
         return self.direction == NodePort.INPUT
 
