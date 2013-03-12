@@ -124,7 +124,7 @@ class Node(QGraphicsItem):
         """
         # Reposition the ports
         height = self.headerSize
-        for i, port in enumerate(self.ports):
+        for port in self.ports:
             # The width is slightly extended to allow the port to detect mouse 
             # events from a small distance away
             port.width = self.width + port.padding * 2 + port.radius * 2
@@ -222,18 +222,23 @@ class NodeConnection(QGraphicsPathItem):
     def __init__(self, sourcePort=None, destinationPort=None):
         super(NodeConnection, self).__init__()
         
-        self.adapter     = AnimationAdapter(self)
-        self.lastPort    = None
-        self.points      = None
-        self.valid       = False
-        self.active      = False
-        self.source      = sourcePort
-        self.destination = destinationPort
-        self.pen         = QPen(QColor(30, 30, 30, 200), 2)
+        self.adapter      = AnimationAdapter(self)
+        self.lastPort     = None
+        self.points       = None
+        self.valid        = False
+        self.active       = False
+        self.source       = sourcePort
+        self.destination  = destinationPort
+        self.pen          = QPen(QColor(30, 30, 30, 200), 2)
+        self.pendingStart = None
+        self.pendingEnd   = None
 
         self.setPen(self.pen)
         self.setZValue(-1)
         
+        if sourcePort and destinationPort:
+            self.connect(sourcePort, destinationPort)
+
         # Animations
         self.fadeInAnimation = QPropertyAnimation(self.adapter, "opacity")
         self.fadeInAnimation.setDuration(300)
@@ -259,41 +264,52 @@ class NodeConnection(QGraphicsPathItem):
     def fadeIn(self):
         self.fadeInAnimation.start()
 
-    def getPoint(self, item):
-        if isinstance(item, NodePort):
-            point = item.scenePos() + item.getPortBoundingRect().center()
-        else:
-            point = item
+    def getPosition(self, obj):
+        point = None
+
+        if isinstance(obj, NodePort):
+            # Object is a NodePort
+            point = obj.getAbsolutePosition()
+        elif isinstance(obj, QPointF):
+            # Object is a QPointF
+            point = obj
             
         return point
-    
-    def updatePoints(self):
-        if self.source and self.destination:
-            if self.startPoint is self.source:
-                self.points = [self.getPoint(self.source), 
-                               self.getPoint(self.destination)]
+
+    def getPoints(self):
+        points = []
+
+        if self.active:
+            # Established connection
+            points = [self.getPosition(self.source), 
+                self.getPosition(self.destination)]
+        elif self.pendingStart and self.pendingEnd:
+            # Pending connection
+            if self.pendingStart.isOutput():
+                points = [self.getPosition(self.pendingStart), 
+                    self.getPosition(self.pendingEnd)]
             else:
-                self.points = [self.getPoint(self.destination),
-                               self.getPoint(self.source)]
+                points = [self.getPosition(self.pendingEnd),
+                    self.getPosition(self.pendingStart)]
+
+        return points
 
     def updatePath(self):
-        if self.points and self.points[0] and self.points[1]:
-            pos1, pos2 = self.points
+        points = self.getPoints()
+        if points:
+            leftPoint, rightPoint = points
             path = QPainterPath()
-            path.moveTo(pos1)
+            path.moveTo(leftPoint)
             
-            e = 0.5
-            f = 1
-            if self.startPoint.isInput():
-                f = -1
+            e  = 0.5
+            # f  = 1.0
+            dx = rightPoint.x() - leftPoint.x()
+            dy = rightPoint.y() - leftPoint.y()
                 
-            dx = pos2.x() - pos1.x()
-            dy = pos2.y() - pos1.y()
-                
-            ctrl1 = QPointF(pos1.x() + abs(dx) * e * f, pos1.y())
-            ctrl2 = QPointF(pos2.x() - abs(dx) * e * f, pos1.y() + dy)
+            ctrl1 = QPointF( leftPoint.x() + abs(dx) * e, leftPoint.y())
+            ctrl2 = QPointF(rightPoint.x() - abs(dx) * e, leftPoint.y() + dy)
             
-            path.cubicTo(ctrl1, ctrl2, pos2)
+            path.cubicTo(ctrl1, ctrl2, rightPoint)
             
             self.setPath(path)
     
@@ -303,67 +319,110 @@ class NodeConnection(QGraphicsPathItem):
         else:
             self.source = port
         self.startPoint = port
-        
-    def setEndPoint(self, port):
-        if isinstance(port, QPointF):
-            self.valid = False
-            
-            if self.lastPort:
-                self.lastPort.setHighlight(False)
-                for connection in self.lastPort.connections:
-                    connection.fadeIn()
-                self.lastPort = None
-                
-            if self.startPoint.isInput():
-                self.source = port
-            else:
-                self.destination = port
-                
-            self.updatePoints()
-            
-        elif self.isConnectionValid(self.startPoint, port):
-            self.valid = True
-            if self.startPoint.isInput():
-                self.source = port
-            else:
-                for connection in port.connections:
-                    connection.fadeOut()
-                self.destination = port
-            port.setHighlight(True)
-            self.lastPort = port
-            self.updatePoints()
-            
-        else:
-            self.valid = False
     
-    def connectNodes(self):
-        if self.valid:
-            self.source.connectTo(self.destination, self)
-            self.destination.removeConnections()
-            self.destination.connectTo(self.source, self)
-        else:
-            self.delete()
-    
-    def connect(source, destination):
-        self.setStartPoint(source)
-        self.setEndPoint(destination)
-        self.connectNodes()
+    def anchorTo(self, obj):
+        if isinstance(obj, NodePort):
+            self.pendingStart = obj
+            self.updatePath()
 
-    def isConnectionValid(self, port1, port2):
-        valid = False
-        if isinstance(port1, NodePort) and isinstance(port2, NodePort):
-            cyclic = False
-            if port1.isInput():
-                cyclic = port1.parentItem() in port2.parentItem().getAllAncestors()
-            else:
-                cyclic = port2.parentItem() in port1.parentItem().getAllAncestors()
+    def dragTo(self, obj):
+        self.pendingEnd = obj
+        self.updatePath()
+
+    def canConnect(self, obj1, obj2):
+        """
+        Returns a true/false value indicating whether or not the connection can
+        be properly made with the specified objects.
+        """
+        # The objects must exist.
+        if not obj1 or not obj2:
+            return False
+
+        # The objects must be ports.
+        if not isinstance(obj1, NodePort) or not isinstance(obj2, NodePort):
+            return False
+
+        # The ports cannot be the same.
+        if obj1 is obj2:
+            return False
+
+        # The ports cannot have the same parent node.
+        if obj1.parentItem() is obj2.parentItem():
+            return False
+
+        # The ports must have opposite directions.
+        if obj1.direction is obj2.direction:
+            return False
+
+        # The connection cannot be a cyclic loop.
+        if obj1.isInput():
+            if obj1.parentItem() in obj2.parentItem().getAllAncestors():
+                return False
+        else:
+            if obj2.parentItem() in obj1.parentItem().getAllAncestors():
+                return False
+
+        return True
+
+    def canConnectTo(self, obj):
+        """
+        Returns a true/false value indicating whether or not the connection can
+        be properly made with the current pending ports.
+        """
+        return self.canConnect(self.pendingStart, obj)
+
+    def connectPendingPorts(self):
+        return self.connect(self.pendingStart, self.pendingEnd)
+
+    def connect(self, obj1, obj2):
+        """
+        Connect the connection.
+
+        If connection succeeds, the connection is set to active. If the 
+        connection fails, the connection automatically deletes itself.
+        """
+        success = False
+
+        if not self.active:
+            # Attempt connection
+            if self.canConnect(obj1, obj2):
+                self.pendingStart = None
+                self.pendingEnd   = None
                 
-            valid = (port1 is not port2 and 
-                isinstance(port1, NodePort) and isinstance(port2, NodePort) and
-                port1.parentItem() is not port2.parentItem() and 
-                port1.direction is not port2.direction and 
-                not cyclic) # no two inputs on the same node one input dismatles the other, check blender
-        return valid
+                if obj1.isOutput():
+                    self.source, self.destination = obj1, obj2
+                else:
+                    self.destination, self.source = obj1, obj2
+
+                self.source.connectTo(self.destination, self)
+                self.destination.removeConnections()
+                self.destination.connectTo(self.source, self)
+
+                self.active = True
+                success = True
+            else:
+                success = False
+
+        return success
+
+    def disconnect(self):
+        """
+        Disconnect the connection.
+
+        This often occurrs when the connection is being relocated for 
+        permanent modification or deletion.
+        """
+        if self.active:
+            self.source.removeConnection(self)
+            self.destination.removeConnection(self)
+
+            self.pendingStart = self.source
+            self.pendingEnd   = self.destination
+
+            self.source       = None
+            self.destination  = None
+
+            self.active = False
         
     def delete(self):
         self.setParentItem(None)
@@ -387,7 +446,7 @@ class NodePort(QGraphicsItem):
         self.width, self.height = 0, 30
         self.connections = {}
         self.highlighted = False
-        
+        self.pendingConnection = None
         self.direction = direction
         self.label     = label or self.direction.capitalize()
 
@@ -395,7 +454,7 @@ class NodePort(QGraphicsItem):
         self.pen.setWidth(1)
 
         self.setColor("#eee")
-                
+        
     def setColor(self, color):
         self.color  = QColor(color)
         darkerColor = self.color.darker(110)
@@ -405,34 +464,62 @@ class NodePort(QGraphicsItem):
         gradient.setColorAt(1, darkerColor)
         self.brush = QBrush(gradient)
         
-        self.highlightBrush = QBrush(self.color.lighter(105))
+        self.highlightBrush = QBrush(self.color.lighter(110))
         
     def boundingRect(self):
         return QRectF(0, 0, self.width, self.height)
     
+    def getAbsolutePosition(self):
+        return self.scenePos() + self.getPortBoundingRect().center()
+
     def mousePressEvent(self, event):
-        self.connection = NodeConnection()
-        self.connection.setStartPoint(self)
-        self.scene().addItem(self.connection)
+        if self.isInput() and self.hasConnections():
+            # An existing connection is being dragged. Since input ports must 
+            # only have one connection, set this connection as the pending 
+            # connection.
+            self.pendingConnection = self.connections.keys()[0]
+            self.pendingConnection.disconnect()
+        else:
+            # A new connection is being created
+            self.pendingConnection = NodeConnection()
+            self.scene().addItem(self.pendingConnection)
+            self.pendingConnection.anchorTo(self)
     
     def mouseMoveEvent(self, event):
-        scenePos = event.scenePos()
-        nodePort = self.scene().itemAt(scenePos)
-        self.connection.setEndPoint(nodePort)
-        
-        if not self.connection.valid:
-            self.connection.setEndPoint(scenePos)
-        
-        self.connection.updatePath()
+        if self.pendingConnection:
+            position = event.scenePos()
+            # The pending connection is being dragged.
+            obj = self.scene().itemAt(position)
+            if self.pendingConnection.pendingEnd is not obj:
+                # The pending connection is being dragged over a new object.
+                if self.pendingConnection.canConnectTo(obj):
+                    # The pending connection is being dragged over a valid port.
+                    # Highlight the port.
+                    obj.highlight(True)
+                    self.pendingConnection.dragTo(obj)
+                else:
+                    # Unhighlight any previously pending ports.
+                    pendingEnd = self.pendingConnection.pendingEnd
+                    if isinstance(pendingEnd, NodePort):
+                        pendingEnd.highlight(False)
+                    # Drag the pending connection to the current mouse position.
+                    self.pendingConnection.dragTo(position)
+                # Recalculate and redraw the connection
+                self.pendingConnection.updatePath()
         
     def mouseReleaseEvent(self, event):
-        self.connection.connectNodes()
+        if self.pendingConnection:
+            # Attempt to connect in whatever state the connection is in.
+            if not self.pendingConnection.connectPendingPorts():
+                # Automatically delete if the connection fails
+                self.pendingConnection.delete()
+            self.pendingConnection = None
         
     def hoverEnterEvent(self, event):
-        self.setHighlight(True)
+        self.highlight(True)
         
     def hoverLeaveEvent(self, event):
-        self.setHighlight(False)
+        self.highlight(False)
         
     def getPortBoundingRect(self):
         x = self.boundingRect().width() - self.radius * 2.0 - self.padding
@@ -443,19 +530,16 @@ class NodePort(QGraphicsItem):
         
         diameter = self.radius * 2
         return QRectF(x, y, diameter, diameter)
-        
+    
     def shape(self):
         path = QPainterPath()
         p = self.padding
         path.addEllipse(self.getPortBoundingRect().adjusted(-p, -p, p, p))
         return path
     
-    def setHighlight(self, value):
+    def highlight(self, value):
         self.highlighted = value
         self.update()
-        
-    def isHighlighted(self):
-        return self.highlighted
     
     def isInput(self):
         return self.direction == NodePort.INPUT
@@ -487,14 +571,13 @@ class NodePort(QGraphicsItem):
     
     def updateConnections(self):
         for connection in self.connections.keys():
-            connection.updatePoints()
             connection.updatePath()
-            
+
     def paint(self, painter, option, widget):
         painter.setPen(self.pen)
         
         painter.setBrush(self.brush)
-        if self.isHighlighted():
+        if self.highlighted:
             painter.setBrush(self.highlightBrush)
             
         painter.setFont(self.font)
