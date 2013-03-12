@@ -1,4 +1,5 @@
-from giza.widgets import Node, NodePort
+from giza.widgets import (Node, NodePort, ColorNodePort, ValueNodePort, 
+                         PixmapNodePort)
 
 moduleData = {
     "name"       : "Convert",
@@ -15,10 +16,11 @@ class MixNode(Node):
         super(MixNode, self).__init__()
         
         self.title = "Mix"
-        self.width = 400
-        self.addPort(NodePort(NodePort.COLOR,  NodePort.OUTPUT,  "In"))
-        self.addPort(NodePort(NodePort.COLOR,  NodePort.OUTPUT,  "In"))
-        self.addPort(NodePort(NodePort.COLOR,  NodePort.INPUT,  "In"))
-        self.addPort(NodePort(NodePort.VALUE,  NodePort.OUTPUT, "Out"))
-        self.addPort(NodePort(NodePort.PIXMAP, NodePort.INPUT,  "In"))
-        self.addPort(NodePort(NodePort.COLOR,  NodePort.OUTPUT, "Out"))
+        # self.width = 400
+        self.addPort(NodePort(NodePort.OUTPUT, "lol"))
+        self.addPort(ColorNodePort(NodePort.OUTPUT))
+        self.addPort(ColorNodePort(NodePort.OUTPUT, "Vec4f"))
+        self.addPort(ValueNodePort(NodePort.OUTPUT, "Normal"))
+        self.addPort(PixmapNodePort(NodePort.INPUT, "Vec"))
+        self.addPort(PixmapNodePort(NodePort.INPUT, "Vec4f"))
+        self.addPort(ValueNodePort(NodePort.INPUT, "Normal"))

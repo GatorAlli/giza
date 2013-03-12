@@ -1,7 +1,7 @@
 import sys
 from PyQt4.QtGui import QApplication
 from giza.widgets import NodeView
-from giza.nodetypes.input import ColorInputNode
+from giza.nodetypes.input import ColorInputNode, NumberInputNode
 from giza.nodetypes.convert import MixNode
 import random
 
@@ -14,6 +14,16 @@ if __name__ == "__main__":
     nodeRange = 1000
     for x in range(4):
         node = MixNode()
+        node.setPos(random.random() * nodeRange - nodeRange / 2,
+                    random.random() * nodeRange - nodeRange / 2)
+        nodeViewWidget.scene().addItem(node)
+    for x in range(4):
+        node = ColorInputNode()
+        node.setPos(random.random() * nodeRange - nodeRange / 2,
+                    random.random() * nodeRange - nodeRange / 2)
+        nodeViewWidget.scene().addItem(node)
+    for x in range(4):
+        node = NumberInputNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
         nodeViewWidget.scene().addItem(node)

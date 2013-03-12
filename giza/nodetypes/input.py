@@ -1,4 +1,5 @@
-from giza.widgets import Node, NodePort
+from giza.widgets import (Node, NodePort, ColorNodePort, 
+                         ValueNodePort)
 
 moduleData = {
     "name"       : "Input",
@@ -14,8 +15,8 @@ class ColorInputNode(Node):
     def __init__(self):
         super(ColorInputNode, self).__init__()
         
-        self.setTitle("Color")
-        self.addPort(NodePort(NodePort.COLOR, NodePort.OUTPUT, "ColorOut"))
+        self.title = "Color"
+        self.addPort(ColorNodePort(NodePort.OUTPUT, "Color"))
         
 
 class NumberInputNode(Node):
@@ -25,4 +26,7 @@ class NumberInputNode(Node):
     
     def __init__(self):
         super(NumberInputNode, self).__init__()
-        print "XD"
+        
+        self.title = "Input Value"
+        self.width = 200
+        self.addPort(ValueNodePort(NodePort.OUTPUT, "Value"))
