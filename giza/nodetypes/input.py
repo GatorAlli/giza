@@ -19,14 +19,14 @@ class ColorInputNode(Node):
         self.addPort(ColorNodePort(NodePort.OUTPUT, "Color"))
         
 
-class NumberInputNode(Node):
+class ValueInputNode(Node):
     
-    name = "Number"
-    description = "Lol this is a number!"
+    name = "Value"
+    description = "A floating point number"
     
     def __init__(self):
-        super(NumberInputNode, self).__init__()
+        super(ValueInputNode, self).__init__()
         
-        self.title = "Input Value"
+        self.title = "Value"
         self.width = 200
         self.addPort(ValueNodePort(NodePort.OUTPUT, "Value"))

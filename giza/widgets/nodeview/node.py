@@ -491,23 +491,23 @@ class NodePort(QGraphicsItem):
             # The pending connection is being dragged.
             obj = self.scene().itemAt(position)
             if self.pendingConnection.pendingEnd is not obj:
-                # The pend# Unhighlight any previously pending ports.ing connection is being dragged over a new object.
+                # The pending connection is being dragged over a new object.
+                
                 # Unhighlight any previously pending ports.
                 pendingEnd = self.pendingConnection.pendingEnd
                 if isinstance(pendingEnd, NodePort):
                     pendingEnd.highlight(False)
-                    pendingEnd.highlightConnections(False)
+                    pendingEnd.fadeConnections(False)
 
                 if self.pendingConnection.canConnectTo(obj):
                     # The pending connection is being dragged over a valid port.
                     # Highlight the port.
                     obj.highlight(True)
-                    obj.highlightConnections(True)
+                    obj.fadeConnections(True)
                     self.pendingConnection.dragTo(obj)
                 else:
                     # Drag the pending connection to the current mouse position.
                     self.pendingConnection.dragTo(position)
-
 
                 # Recalculate and redraw the connection
                 self.pendingConnection.updatePath()
@@ -546,11 +546,12 @@ class NodePort(QGraphicsItem):
         self.highlighted = value
         self.update()
     
-    def highlightConnections(self, value):
-        if value:
-            [connection.fadeOut() for connection in self.connections.keys()]
-        else:
-            [connection.fadeIn() for connection in self.connections.keys()]
+    def fadeConnections(self, value):
+        if self.isInput():
+            if value:
+                [connection.fadeOut() for connection in self.connections.keys()]
+            else:
+                [connection.fadeIn() for connection in self.connections.keys()]
 
     def isInput(self):
         return self.direction == NodePort.INPUT
