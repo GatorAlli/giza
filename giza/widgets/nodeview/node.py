@@ -36,7 +36,8 @@ class Node(QGraphicsWidget):
         # Settings
         self.title = "Node"
         self.shadowBlurRadius = 20
-        self.setPreferredSize(150, -1)
+        self.setMinimumWidth(150)
+        self.setPreferredSize(200, -1)
 
         # Drop Shadow
         self.shadow = QGraphicsDropShadowEffect()
@@ -115,7 +116,6 @@ class Node(QGraphicsWidget):
         self.ports.append(port)
         self.layout().addItem(port)
         #port.setParentItem(self)
-        self.updatePorts()
         
     def removePort(self, port):
         """
@@ -123,33 +123,6 @@ class Node(QGraphicsWidget):
         """
         self.ports.remove(port)
         port.remove()
-        self.updatePorts()
-        
-    def updatePorts(self):
-        """
-        Repositions ports based on size and also resizes the Node to fit the 
-        ports. 
-        """
-        # Reposition the ports
-        height = self.headerSize
-        for port in self.ports:
-            # The width is slightly extended to allow the port to detect mouse 
-            # events from a small distance away
-            port.width = self.width + port.padding * 2 + port.radius * 2
-            #port.setPos(-port.padding - port.radius, height)
-            height += port.height
-            # Repaint the port with its new size
-
-            # This is a hack for getting the gradients to correctly display on 
-            # output ports.
-            port.setColor(port.color)
-            # End of hack.
-
-            #port.update()
-
-        # Resize the node based on the sum of the port heights
-        self.height = height
-        self.update()
     
     @property
     def inputPorts(self):
@@ -216,7 +189,7 @@ class NodeTitleBar(QGraphicsWidget):
         super(NodeTitleBar, self).__init__()
 
         # Colors
-        self.textColor = QColor(  30,  30,  30, 255 )
+        self.textColor = QColor(30, 30, 30, 255)
 
         # Painter Definitions
         self.pen = QPen(self.textColor)
@@ -227,10 +200,9 @@ class NodeTitleBar(QGraphicsWidget):
         # Settings
         self.title = ""
 
-        self.setMinimumSize(QSizeF(-1, 20))
-        #self.setPreferredSize(QSizeF(-1, 20))
-        self.updateGeometry()
-
+        self.setMinimumSize(QSizeF(-1, 30))
+        self.setPreferredSize(QSizeF(-1, 30))
+        
     def paint(self, painter, option, widget):
         """
         Overrides QGraphicsItem's paint() virtual public function.
@@ -269,7 +241,7 @@ class AnimationAdapter(QObject):
         return self.obj.setOpacity(opacity)
     
     opacity = pyqtProperty(float, __get_opacity, __set_opacity)
-        
+
 class NodeConnection(QGraphicsPathItem):
     """
     NodeConnection
@@ -296,13 +268,13 @@ class NodeConnection(QGraphicsPathItem):
 
         # Animations
         self.fadeInAnimation = QPropertyAnimation(self.adapter, "opacity")
-        self.fadeInAnimation.setDuration(300)
+        self.fadeInAnimation.setDuration(150)
         self.fadeInAnimation.setStartValue(0.5)
         self.fadeInAnimation.setEndValue(1.0)
         self.fadeInAnimation.setEasingCurve(QEasingCurve.InOutQuad)
         
         self.fadeOutAnimation = QPropertyAnimation(self.adapter, "opacity")
-        self.fadeOutAnimation.setDuration(300)
+        self.fadeOutAnimation.setDuration(150)
         self.fadeOutAnimation.setStartValue(1.0)
         self.fadeOutAnimation.setEndValue(0.5)
         self.fadeOutAnimation.setEasingCurve(QEasingCurve.InOutQuad)
@@ -486,51 +458,37 @@ class NodeConnection(QGraphicsPathItem):
         #self.setParentItem(None)
         self.scene().removeItem(self)
     
-class NodePort(QGraphicsLayoutItem):
+class NodePort(QGraphicsWidget):
     
     INPUT  = "input"
     OUTPUT = "output"
     
     def __init__(self, direction=INPUT, label=None):
         super(NodePort, self).__init__()
-        #self.setAcceptHoverEvents(True)
         
         self.textColor = QColor(30, 30, 30)
         self.font = QFont()
         self.font.setPointSize(10)
         
-        self.radius = 6
-        self.width, self.height = 30, 30
-        self.padding = self.height / 2.0
         self.connections = {}
-        self.highlighted = False
         self.pendingConnection = None
         self.direction = direction
-        self.label     = label or self.direction.capitalize()
-
-        self.pen = QPen(QColor(30, 30, 30, 255*.25))
-        self.pen.setWidth(1)
-
+        self.label = label or self.direction.capitalize()
+        self.socket = NodePortSocket()
+        self.socket.setParentItem(self)
+        self.socket.setPos(-10, -10)
+        
         self.setColor("#eee")
-        self.setPreferredSize(self.width, self.height)
-        
-    def setColor(self, color):
-        self.color  = QColor(color)
-        darkerColor = self.color.darker(110)
-        gradient = QRadialGradient(self.getPortBoundingRect().center(), 6)
-        gradient.setColorAt(0, self.color)
-        gradient.setColorAt(1, darkerColor)
-        self.brush = QBrush(gradient)
-        
-        self.highlightBrush = QBrush(self.color.lighter(110))
+        self.setMinimumSize(QSizeF(-1, 30))
+        self.setPreferredSize(QSizeF(-1, 30))
         
     def boundingRect(self):
-        return QRectF(0, 0, self.width, self.height)
+        return QRectF(QPointF(0, 0), self.geometry().size())
     
     def getAbsolutePosition(self):
-        return self.scenePos() + self.getPortBoundingRect().center()
+        return self.scenePos() + self.socket.boundingRect().center()
 
-    def mousePressEvent(self, event):
+    def socketMousePressEvent(self, event):
         if self.isInput() and self.hasConnections():
             # An existing connection is being dragged. Since input ports must 
             # only have one connection, set this connection as the pending 
@@ -543,7 +501,7 @@ class NodePort(QGraphicsLayoutItem):
             self.scene().addItem(self.pendingConnection)
             self.pendingConnection.anchorTo(self)
     
-    def mouseMoveEvent(self, event):
+    def socketMouseMoveEvent(self, event):
         if self.pendingConnection:
             position = event.scenePos()
             # The pending connection is being dragged.
@@ -570,7 +528,7 @@ class NodePort(QGraphicsLayoutItem):
                 # Recalculate and redraw the connection
                 self.pendingConnection.updatePath()
         
-    def mouseReleaseEvent(self, event):
+    def socketMouseReleaseEvent(self, event):
         if self.pendingConnection:
             # Attempt to connect in whatever state the connection is in.
             if not self.pendingConnection.connectPendingPorts():
@@ -578,27 +536,15 @@ class NodePort(QGraphicsLayoutItem):
                 self.pendingConnection.delete()
             self.pendingConnection = None
         
-    def hoverEnterEvent(self, event):
-        self.highlight(True)
-        
-    def hoverLeaveEvent(self, event):
-        self.highlight(False)
-        
-    def getPortBoundingRect(self):
-        x = self.boundingRect().width() - self.radius * 2.0 - self.padding
-        y = self.boundingRect().height() / 2.0 - self.radius
-        
-        if self.isInput():
-            x = self.padding
-        
-        diameter = self.radius * 2
-        return QRectF(x, y, diameter, diameter)
-    
-    def shape(self):
-        path = QPainterPath()
-        p = self.padding
-        path.addEllipse(self.getPortBoundingRect().adjusted(-p, -p, p, p))
-        return path
+    #def getPortBoundingRect(self):
+    #    x = self.boundingRect().width() - self.radius * 2.0 - self.padding
+    #    y = self.boundingRect().height() / 2.0 - self.radius
+    #    
+    #    if self.isInput():
+    #        x = self.padding
+    #    
+    #    diameter = self.radius * 2
+    #    return QRectF(x, y, diameter, diameter)
     
     def highlight(self, value):
         self.highlighted = value
@@ -642,18 +588,12 @@ class NodePort(QGraphicsLayoutItem):
     def updateConnections(self):
         for connection in self.connections.keys():
             connection.updatePath()
-
+    
+    def setColor(self, color):
+        self.socket.setColor(color)
+        
     def paint(self, painter, option, widget):
-        painter.setPen(self.pen)
-        
-        painter.setBrush(self.brush)
-        if self.highlighted:
-            painter.setBrush(self.highlightBrush)
-            
-        painter.setFont(self.font)
-        
-        painter.drawEllipse(self.getPortBoundingRect())
-        
+        #painter.drawRect(self.boundingRect())
         painter.setPen(self.textColor)
         textRect = self.boundingRect()
         n = 12 * 3 + 20
@@ -669,6 +609,67 @@ class NodePort(QGraphicsLayoutItem):
     def remove(self):
         pass
 
+class NodePortSocket(QGraphicsItem):
+    def __init__(self):
+        super(NodePortSocket, self).__init__()
+        
+        self.setAcceptHoverEvents(True)
+        
+        self.radius = 6
+        self.padding = 10
+        self.pen = QPen(QColor(30, 30, 30, 255*.25))
+        self.highlighted = False
+        self.pen.setWidth(1)
+        self.setColor("#eee")
+        
+    def setColor(self, color):
+        self.color  = QColor(color)
+        darkerColor = self.color.darker(110)
+        gradient = QRadialGradient(self.boundingRect().center(), 6)
+        gradient.setColorAt(0, self.color)
+        gradient.setColorAt(1, darkerColor)
+        self.brush = QBrush(gradient)
+        
+        self.highlightBrush = QBrush(self.color.lighter(110))
+        
+    def boundingRect(self):
+        diameter = self.radius * 2
+        return QRectF(QPointF(0, 0), QPointF(diameter, diameter))
+    
+    def paint(self, painter, option, widget):
+        painter.setPen(self.pen)
+        
+        painter.setBrush(self.brush)
+        if self.highlighted:
+            painter.setBrush(self.highlightBrush)
+            
+        painter.drawEllipse(self.boundingRect())
+        
+    def shape(self):
+        path = QPainterPath()
+        p = self.padding
+        path.addEllipse(self.boundingRect().adjusted(-p, -p, p, p))
+        return path
+    
+    def hoverEnterEvent(self, event):
+        self.highlight(True)
+        
+    def hoverLeaveEvent(self, event):
+        self.highlight(False)
+        
+    def highlight(self, value):
+        self.highlighted = value
+        self.update()
+        
+    def mousePressEvent(self, event):
+        self.parentItem().socketMousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        self.parentItem().socketMouseMoveEvent(event)
+        
+    def mouseReleaseEvent(self, event):
+        self.parentItem().socketMouseReleaseEvent(event)
+        
 class ColorNodePort(NodePort):
     def __init__(self, *args, **kwargs):
         super(ColorNodePort, self).__init__(*args, **kwargs)

@@ -1,6 +1,6 @@
 import sys
 from PyQt4.QtGui import QApplication
-from giza.widgets import NodeView, Dial
+from giza.widgets import NodeView#, Dial
 from giza.nodetypes.input import ColorInputNode, ValueInputNode
 from giza.nodetypes.convert import MixNode
 
@@ -30,11 +30,11 @@ if __name__ == "__main__":
         nodeViewWidget.scene().addItem(node)"""
     
     node = MixNode()
-    dial = Dial()
+    #dial = Dial()
     node.setPos(0, 0)
-    dial.setPos(0, 0)
+    #dial.setPos(0, 0)
     nodeViewWidget.scene().addItem(node)
-    nodeViewWidget.scene().addItem(dial)
+    #nodeViewWidget.scene().addItem(dial)
     #nodeViewWidget.scale(2, 2)
     '''
     for _ in range(1):
