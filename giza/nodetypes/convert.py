@@ -17,10 +17,10 @@ class MixNode(Node):
         
         self.title = "Mix"
         # self.width = 400
-        self.addPort(NodePort(NodePort.OUTPUT, "lol"))
-        self.addPort(ColorNodePort(NodePort.OUTPUT))
-        self.addPort(ColorNodePort(NodePort.OUTPUT, "Vec4f"))
-        self.addPort(ValueNodePort(NodePort.OUTPUT, "Normal"))
-        self.addPort(PixmapNodePort(NodePort.INPUT, "Vec"))
-        self.addPort(PixmapNodePort(NodePort.INPUT, "Vec4f"))
-        self.addPort(ValueNodePort(NodePort.INPUT, "Normal"))
+        # self.addPort(NodePort(NodePort.OUTPUT, "lol"))
+        # self.addPort(ColorNodePort(NodePort.OUTPUT))
+        # self.addPort(ColorNodePort(NodePort.OUTPUT, "Vec4f"))
+        # self.addPort(ValueNodePort(NodePort.OUTPUT, "Normal"))
+        # self.addPort(PixmapNodePort(NodePort.INPUT, "Vec"))
+        # self.addPort(PixmapNodePort(NodePort.INPUT, "Vec4f"))
+        # self.addPort(ValueNodePort(NodePort.INPUT, "Normal"))

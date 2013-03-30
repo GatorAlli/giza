@@ -13,21 +13,21 @@ if __name__ == "__main__":
     nodeViewWidget = NodeView()
     
     nodeRange = 1000
-    for x in range(4):
+    for x in range(8):
         node = MixNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
         nodeViewWidget.scene().addItem(node)
-    for x in range(4):
+    """for x in range(2):
         node = ColorInputNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
         nodeViewWidget.scene().addItem(node)
-    for x in range(4):
+    for x in range(2):
         node = ValueInputNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
-        nodeViewWidget.scene().addItem(node)
+        nodeViewWidget.scene().addItem(node)"""
     
     node = MixNode()
     dial = Dial()
@@ -35,6 +35,7 @@ if __name__ == "__main__":
     dial.setPos(0, 0)
     nodeViewWidget.scene().addItem(node)
     nodeViewWidget.scene().addItem(dial)
+    #nodeViewWidget.scale(2, 2)
     '''
     for _ in range(1):
         node1 = MixNode()

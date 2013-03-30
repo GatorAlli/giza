@@ -1,10 +1,8 @@
-from PyQt4.QtGui import (QGraphicsItem, QGraphicsPathItem, QColor, QPen, QBrush, 
-                         QGraphicsDropShadowEffect, QFont, QRadialGradient,
-                         QPainterPath)
-from PyQt4.QtCore import (QRectF, Qt, QPointF, QPropertyAnimation, QEasingCurve,
-                          QObject, pyqtProperty)
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+import random
 
-class Node(QGraphicsItem):
+class Node(QGraphicsWidget):
     """
     Node
     """
@@ -17,6 +15,16 @@ class Node(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         
+        # Layout
+        layout = QGraphicsLinearLayout(Qt.Vertical)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        # Title Bar
+        self.titleBar = NodeTitleBar()
+        self.layout().addItem(self.titleBar)
+
         # Colors
         self.backgroundColor     = QColor( 120, 120, 120, 230 )
         self.normalBorderColor   = QColor(  15,  15,  15,  64 )
@@ -27,14 +35,14 @@ class Node(QGraphicsItem):
 
         # Settings
         self.title = "Node"
-        self.width, self.height = 150, 180
-        self.headerSize = 20
         self.shadowBlurRadius = 20
-        
+        self.setPreferredSize(150, -1)
+
         # Drop Shadow
         self.shadow = QGraphicsDropShadowEffect()
         self.shadow.setBlurRadius(self.shadowBlurRadius)
         self.shadow.setOffset(0, 0)
+        self.shadow.setColor(self.shadowColor)
         self.setGraphicsEffect(self.shadow)
         
         # Painter Definitions
@@ -66,9 +74,9 @@ class Node(QGraphicsItem):
         Overrides QGraphicsItem's boundingRect() virtual public function and 
         returns a valid bounding rect based on calculated width and height.
         """
-        return QRectF(0, 0, self.width, self.height).adjusted(
-            -self.shadowBlurRadius, -self.shadowBlurRadius, 
-             self.shadowBlurRadius,  self.shadowBlurRadius)
+        return QRectF(QPointF(0, 0), self.geometry().size())#.adjusted(
+            #-self.shadowBlurRadius, -self.shadowBlurRadius, 
+            # self.shadowBlurRadius,  self.shadowBlurRadius)
 
     def paint(self, painter, option, widget):
         """
@@ -77,12 +85,7 @@ class Node(QGraphicsItem):
         # Draw base rectangle
         painter.setPen(self.pen)
         painter.setBrush(self.brush)
-        painter.drawRoundedRect(0, 0, self.width, self.height, 4, 4)
-        
-        # Draw title text
-        painter.setPen(self.textColor)
-        painter.setFont(self.font)
-        painter.drawText(10, 20, self.title)
+        painter.drawRoundedRect(self.boundingRect(), 4, 4)
 
     def setSelected(self, selected):
         """
@@ -97,12 +100,21 @@ class Node(QGraphicsItem):
             self.shadow.setColor(self.shadowColor)
             self.pen.setColor(self.normalBorderColor)
     
+    @property
+    def title(self):
+        return self.title
+
+    @title.setter
+    def title(self, title):
+        self.titleBar.title = title
+
     def addPort(self, port):
         """
         Adds a port.
         """
         self.ports.append(port)
-        port.setParentItem(self)
+        self.layout().addItem(port)
+        #port.setParentItem(self)
         self.updatePorts()
         
     def removePort(self, port):
@@ -124,10 +136,16 @@ class Node(QGraphicsItem):
             # The width is slightly extended to allow the port to detect mouse 
             # events from a small distance away
             port.width = self.width + port.padding * 2 + port.radius * 2
-            port.setPos(-port.padding - port.radius, height)
+            #port.setPos(-port.padding - port.radius, height)
             height += port.height
             # Repaint the port with its new size
-            port.update()
+
+            # This is a hack for getting the gradients to correctly display on 
+            # output ports.
+            port.setColor(port.color)
+            # End of hack.
+
+            #port.update()
 
         # Resize the node based on the sum of the port heights
         self.height = height
@@ -192,7 +210,48 @@ class Node(QGraphicsItem):
                 ancestors.extend(ancestor.getAllAncestors(source))
                 
         return ancestors
-        
+
+class NodeTitleBar(QGraphicsWidget):
+    def __init__(self):
+        super(NodeTitleBar, self).__init__()
+
+        # Colors
+        self.textColor = QColor(  30,  30,  30, 255 )
+
+        # Painter Definitions
+        self.pen = QPen(self.textColor)
+        self.font = QFont()
+        self.pen.setWidth(1)
+        self.font.setPointSize(10)
+
+        # Settings
+        self.title = ""
+
+        self.setMinimumSize(QSizeF(-1, 20))
+        #self.setPreferredSize(QSizeF(-1, 20))
+        self.updateGeometry()
+
+    def paint(self, painter, option, widget):
+        """
+        Overrides QGraphicsItem's paint() virtual public function.
+        """
+        # Draw title text
+        painter.setPen(self.pen)
+        painter.setFont(self.font)
+        painter.drawText(10, 20, self.title)
+
+    def boundingRect(self):
+        return QRectF(QPointF(0, 0), self.geometry().size())
+
+    def mousePressEvent(self, event):
+        super(NodeTitleBar, self).mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        super(NodeTitleBar, self).mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super(NodeTitleBar, self).mouseReleaseEvent(event)
+
 class AnimationAdapter(QObject):
     """
     AnimationAdapter allows QPropertyAnimation to animate otherwise 
@@ -298,10 +357,9 @@ class NodeConnection(QGraphicsPathItem):
             path.moveTo(leftPoint)
             
             e  = 0.5
-            # f  = 1.0
             dx = rightPoint.x() - leftPoint.x()
             dy = rightPoint.y() - leftPoint.y()
-                
+            
             ctrl1 = QPointF( leftPoint.x() + abs(dx) * e, leftPoint.y())
             ctrl2 = QPointF(rightPoint.x() - abs(dx) * e, leftPoint.y() + dy)
             
@@ -425,25 +483,25 @@ class NodeConnection(QGraphicsPathItem):
             self.active = False
         
     def delete(self):
-        self.setParentItem(None)
+        #self.setParentItem(None)
         self.scene().removeItem(self)
     
-class NodePort(QGraphicsItem):
+class NodePort(QGraphicsLayoutItem):
     
     INPUT  = "input"
     OUTPUT = "output"
     
     def __init__(self, direction=INPUT, label=None):
         super(NodePort, self).__init__()
-        self.setAcceptHoverEvents(True)
+        #self.setAcceptHoverEvents(True)
         
         self.textColor = QColor(30, 30, 30)
         self.font = QFont()
         self.font.setPointSize(10)
         
         self.radius = 6
-        self.padding = 12
-        self.width, self.height = 0, 30
+        self.width, self.height = 30, 30
+        self.padding = self.height / 2.0
         self.connections = {}
         self.highlighted = False
         self.pendingConnection = None
@@ -454,11 +512,11 @@ class NodePort(QGraphicsItem):
         self.pen.setWidth(1)
 
         self.setColor("#eee")
+        self.setPreferredSize(self.width, self.height)
         
     def setColor(self, color):
         self.color  = QColor(color)
         darkerColor = self.color.darker(110)
-        
         gradient = QRadialGradient(self.getPortBoundingRect().center(), 6)
         gradient.setColorAt(0, self.color)
         gradient.setColorAt(1, darkerColor)
@@ -551,7 +609,7 @@ class NodePort(QGraphicsItem):
             if value:
                 [connection.fadeOut() for connection in self.connections.keys()]
             else:
-                [connection.fadeIn() for connection in self.connections.keys()]
+                [ connection.fadeIn() for connection in self.connections.keys()]
 
     def isInput(self):
         return self.direction == NodePort.INPUT
@@ -598,7 +656,7 @@ class NodePort(QGraphicsItem):
         
         painter.setPen(self.textColor)
         textRect = self.boundingRect()
-        n = 12*3 + 20
+        n = 12 * 3 + 20
         textRect.setWidth(textRect.width() - n)
         textRect.moveLeft(n / 2.0)
         
