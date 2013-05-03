@@ -1,6 +1,6 @@
 import sys
 from PyQt4.QtGui import QApplication
-from giza.widgets import NodeView#, Dial
+from giza.widgets import NodeView, Dial
 from giza.nodetypes.input import ColorInputNode, ValueInputNode
 from giza.nodetypes.convert import MixNode
 
@@ -18,7 +18,7 @@ if __name__ == "__main__":
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
         nodeViewWidget.scene().addItem(node)
-    """for x in range(2):
+    for x in range(2):
         node = ColorInputNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
@@ -27,15 +27,15 @@ if __name__ == "__main__":
         node = ValueInputNode()
         node.setPos(random.random() * nodeRange - nodeRange / 2,
                     random.random() * nodeRange - nodeRange / 2)
-        nodeViewWidget.scene().addItem(node)"""
+        nodeViewWidget.scene().addItem(node)
     
     node = MixNode()
-    #dial = Dial()
+    dial = Dial()
     node.setPos(0, 0)
-    #dial.setPos(0, 0)
+    dial.setPos(0, 0)
     nodeViewWidget.scene().addItem(node)
-    #nodeViewWidget.scene().addItem(dial)
-    #nodeViewWidget.scale(2, 2)
+    nodeViewWidget.scene().addItem(dial)
+    #nodeViewWidget.scale(.75, .75)
     '''
     for _ in range(1):
         node1 = MixNode()

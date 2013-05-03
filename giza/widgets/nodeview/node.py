@@ -48,11 +48,11 @@ class Node(QGraphicsWidget):
         self.setPreferredSize(200, -1)
 
         # Drop Shadow
-        '''self.shadow = QGraphicsDropShadowEffect()
+        self.shadow = QGraphicsDropShadowEffect()
         self.shadow.setBlurRadius(self.shadowBlurRadius)
         self.shadow.setOffset(0, 0)
         self.shadow.setColor(self.shadowColor)
-        self.setGraphicsEffect(self.shadow)'''
+        self.setGraphicsEffect(self.shadow)
         
         # Painter Definitions
         self.pen   = QPen()
@@ -108,11 +108,11 @@ class Node(QGraphicsWidget):
         """
         if selected:
             # Node selected
-            #self.shadow.setColor(self.selectedShadowColor)
+            self.shadow.setColor(self.selectedShadowColor)
             self.pen.setColor(self.selectedBorderColor)
         else:
             # Node deselected
-            #self.shadow.setColor(self.shadowColor)
+            self.shadow.setColor(self.shadowColor)
             self.pen.setColor(self.normalBorderColor)
     
     def handleMousePressEvent(self, event):
